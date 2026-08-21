@@ -3,6 +3,7 @@ all/comicklive
 all/comicskingdom
 all/comikey
 all/mangadex
+all/nhentai
 all/manhwa18cc
 all/stashapp
 all/webtoons
@@ -10,7 +11,10 @@ en/allporncomic
 en/asurascans
 en/flamecomics
 en/mangahere
+en/manganelo
+en/mangasee
 en/manhwa18
+en/myhentaigallery
 en/novelcrow
 en/voyceme
 en/webtoonscan
