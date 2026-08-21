@@ -1,8 +1,16 @@
+all/comicfury
 all/comicklive
+all/comicskingdom
+all/comikey
+all/mangadex
 all/manhwa18cc
 all/stashapp
 all/webtoons
 en/allporncomic
-en/manhwa18
+en/flamecomics
 en/mangahere
+en/manhwa18
 en/novelcrow
+en/webtoonscan
+en/webtoonxyz
+en/zinmanga
