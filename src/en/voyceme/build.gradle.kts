@@ -6,9 +6,9 @@ plugins {
 
 keiyoushi {
     name = "Voyce.Me"
-    versionCode = 7
+    versionCode = 6
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.6"
+    libVersion = "1.4"
 
     source {
         name = "VoyceMe"
