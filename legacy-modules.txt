@@ -7,10 +7,12 @@ all/manhwa18cc
 all/stashapp
 all/webtoons
 en/allporncomic
+en/asurascans
 en/flamecomics
 en/mangahere
 en/manhwa18
 en/novelcrow
+en/voyceme
 en/webtoonscan
 en/webtoonxyz
 en/zinmanga

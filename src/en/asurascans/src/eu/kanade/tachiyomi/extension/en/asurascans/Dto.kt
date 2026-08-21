@@ -2,14 +2,13 @@ package eu.kanade.tachiyomi.extension.en.asurascans
 
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import keiyoushi.utils.tryParse
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonNames
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
-import kotlin.time.Instant
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 @Serializable
 class DataDto<T>(
@@ -23,46 +22,43 @@ class MetaDto(
 )
 
 @Serializable
+class MangaDetailsDto(
+    val series: MangaDto,
+)
+
+@Serializable
 class MangaDto(
     @SerialName("public_url")
     val publicUrl: String,
     val slug: String,
     private val title: String,
-    @JsonNames("coverUrl")
     private val cover: String,
-) {
-    fun toSManga(baseUrl: String) = SManga.create().apply {
-        title = this@MangaDto.title
-        thumbnail_url = cover
-        url = "/series/$slug" // Keep the old URL structure for compatibility with existing bookmarks
-        memo = buildJsonObject {
-            put("slug", "$baseUrl$publicUrl".toHttpUrl().pathSegments.last())
-        }
-    }
-}
-
-@Serializable
-class MangaDetailsDto(
-    private val title: String,
-    private val coverUrl: String,
     private val author: String? = null,
     private val artist: String? = null,
     private val description: String? = null,
     private val rating: Double? = null,
+    @SerialName("popularity_rank")
     private val popularityRank: Int? = null,
-    private val alternativeTitles: String? = null,
+    @SerialName("alt_titles")
+    private val altTitles: List<String>? = null,
     private val genres: List<GenreDto>? = null,
     private val status: String? = null,
 ) {
+    fun toSManga() = SManga.create().apply {
+        title = this@MangaDto.title
+        thumbnail_url = cover
+        url = "/series/$slug" // Keep the old URL structure for compatibility with existing bookmarks
+    }
+
     fun toSMangaDetails() = SManga.create().apply {
-        title = this@MangaDetailsDto.title
-        thumbnail_url = coverUrl
-        author = this@MangaDetailsDto.author
-        artist = this@MangaDetailsDto.artist
+        title = this@MangaDto.title
+        thumbnail_url = cover
+        author = this@MangaDto.author
+        artist = this@MangaDto.artist
         description = parseDescription()
         genre = genres?.joinToString { it.name }
         status = parseStatus()
-        initialized = true
+        url = "/series/$slug"
     }
 
     fun parseDescription(): String = buildString {
@@ -79,10 +75,10 @@ class MangaDetailsDto(
             append("Rating: %.2f".format(it))
         }
 
-        val cleanAltTitles = alternativeTitles
-            ?.let { if (it.contains("•")) it.split("•") else it.split(",") }
+        val cleanAltTitles = altTitles
+            ?.flatMap { it.split(" • ") }
             ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() }
+            ?.filter { it.isNotBlank() }
 
         if (!cleanAltTitles.isNullOrEmpty()) {
             if (isNotEmpty()) append("\n\n")
@@ -101,45 +97,17 @@ class MangaDetailsDto(
 }
 
 @Serializable
-class MangaUrlDto(
-    val publicUrl: String,
-    val seriesSlug: String,
-) {
-    fun apply(manga: SManga, baseUrl: String) = manga.apply {
-        url = "/series/$seriesSlug" // Keep the old URL structure for compatibility with existing bookmarks
-        memo = buildJsonObject {
-            put("slug", "$baseUrl$publicUrl".toHttpUrl().pathSegments.last())
-        }
-    }
+class GenreDto(
+    val name: String,
+)
+
+private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT).apply {
+    timeZone = TimeZone.getTimeZone("UTC")
 }
 
 @Serializable
-class AvailableGenres(
-    val availableGenres: List<GenreDto>,
-)
-
-@Serializable
-class GenreDto(
-    val name: String,
-    val slug: String,
-)
-
-@Serializable
-class Creators(
-    val artists: List<String>,
-    val authors: List<String>,
-)
-
-@Serializable
-class FiltersDto(
-    val genres: List<GenreDto>,
-    val artists: List<String>,
-    val authors: List<String>,
-)
-
-@Serializable
 class ChapterListDto(
-    val chapters: List<ChapterDto>? = null,
+    val chapters: List<ChapterDto> = emptyList(),
 )
 
 @Serializable
@@ -147,37 +115,26 @@ class ChapterDto(
     private val number: Float,
     private val title: String? = null,
     @SerialName("created_at") private val createdAt: String = "",
-    @SerialName("is_premium")
-    @JsonNames("is_locked")
-    private val isPremium: Boolean = false,
-    @SerialName("early_access_until")
-    private val earlyAccessUntil: String? = null,
+    @SerialName("is_locked") val isLocked: Boolean = false,
     @SerialName("series_slug") private val seriesSlug: String? = null,
 ) {
-    val isLocked: Boolean
-        get() {
-            if (isPremium) return true
-            val until = earlyAccessUntil ?: return false
-            return runCatching {
-                Instant.parse(until).toEpochMilliseconds() > System.currentTimeMillis()
-            }.getOrDefault(false)
-        }
-
-    fun toSChapter(randomMangaSlug: String) = SChapter.create().apply {
+    fun toSChapter() = SChapter.create().apply {
         val numberStr = number.toString().removeSuffix(".0")
         url = "/series/$seriesSlug/chapter/$numberStr"
-        memo = buildJsonObject {
-            put("mangaSlug", randomMangaSlug)
-        }
         name = buildString {
             if (isLocked) append("🔒 ")
             append("Chapter $numberStr")
             title?.let { append(" - $it") }
         }
 
-        date_upload = runCatching {
-            Instant.parse(createdAt).toEpochMilliseconds()
-        }.getOrDefault(0L)
+        // Strip fractional seconds if they exist before parsing
+        val cleanDate = if (createdAt.contains(".")) {
+            createdAt.substringBefore(".") + "Z"
+        } else {
+            createdAt
+        }
+
+        date_upload = dateFormat.tryParse(cleanDate)
     }
 }
 
